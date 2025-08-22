@@ -28,6 +28,8 @@ To add more Batch Test buttons you would need to create a subfolder for each but
 
 Ensure that you edut the `ResourcesToCheck.csv` file to contain your serivces' details. Once done, click Refresh to show the new folder in the app. Folders are automatically refreshed on app restart.
 
+So if you wanted to add SQLServers-Site1, SQLServers-Site2, Web Servers, and CRM buttons in the app, your file structure would look like the following:
+
 ```
 ├── testconn.py             # Main application file
 ├── logo.png             # You can add your own logo here!
@@ -110,6 +112,7 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
 
 
 
