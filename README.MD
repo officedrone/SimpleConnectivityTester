@@ -15,7 +15,7 @@ Quickly check if your machine has connectivity to a remote server:port combinati
 
   ![Batch Test Demo ](./Media/readme-batch2.gif)
 
-- **Bttons generated based on Subfolder + CSV files **: The app detects subfolders that have the `ResourcesToCheck.csv` and dynamically Batch Test buttons when launched or refreshed.
+- **Buttons generated based on Subfolder + CSV files**: The app detects subfolders that have the `ResourcesToCheck.csv` and dynamically Batch Test buttons when launched or refreshed.
 
   ![Folder Demo ](./Media/readme-folder.gif)
 
@@ -110,6 +110,7 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
 
 
 
