@@ -1,6 +1,6 @@
 # Simple Network Connectivity Tester
 
-Quickly check if your machine has connectivity to a remote server:port combination. Create subfolders with target services for quick access.
+Quickly check if your machine has connectivity to a remote server:port combination. Create subfolders with target services in a CSV file that will show up in the batch testing section.
 ![SimpleNetTest ](./Media/simplenettest.png)
 
 ## Features
@@ -107,4 +107,5 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
 
