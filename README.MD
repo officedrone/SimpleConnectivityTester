@@ -1,7 +1,7 @@
 # Simple Network Connectivity Tester
 
 Quickly check if your machine has connectivity to a remote server:port combination. Create subfolders with target services for quick access.
-![SimpleNetTest ](./media/simplenettest.png)
+![SimpleNetTest ](./Media/simplenettest.png)
 
 ## Features
 
@@ -9,11 +9,11 @@ Quickly check if your machine has connectivity to a remote server:port combinati
 
 - **Manual testing**: Test to a single IP:port combinations directly from the main form
 
-  ![Manual Test Demo ](./media/readme-manual.gif)
+  ![Manual Test Demo ](./Media/readme-manual.gif)
 
 - **Batch-testing**: Create subfolders that contain a `ResourcesToCheck.csv` file with target resources to test. Perfect for quickly testing multiple related components of a larger solution.
 
-  ![Batch Test Demo ](./media/readme-batch2.gif)
+  ![Batch Test Demo ](./Media/readme-batch2.gif)
 
 
 
@@ -107,3 +107,4 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
