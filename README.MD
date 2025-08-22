@@ -3,6 +3,12 @@
 Quickly check if your machine has connectivity to a remote server:port combination. Create subfolders with target services in a CSV file that will show up in the batch testing section.
 ![SimpleNetTest ](./Media/simplenettest.png)
 
+## Requirements
+
+- Python 3.x / Tkinter (usually included with Python)
+- Built-in modules: `socket`, `subprocess`, `csv`, `re`, `threading`, `os`
+
+
 ## Features
 
 - **Local IP selection**: Choose which local IP address to test from if your machine has multiple IPs. Handy if you are testing VPN vs local connectivity.
@@ -60,14 +66,6 @@ HTTPS Server,example.com,443
 Database,172.16.0.5,5432
 ```
 
-
-## Requirements
-
-- Python 3.x / Tkinter (usually included with Python)
-- Built-in modules: `socket`, `subprocess`, `csv`, `re`, `threading`, `os`
-
-
-
 ## How to Use
 
 1. **Prepare Your Environment**
@@ -112,6 +110,7 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
 
 
 
