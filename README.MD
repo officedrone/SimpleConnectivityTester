@@ -30,7 +30,7 @@ Ensure that you edut the `ResourcesToCheck.csv` file to contain your serivces' d
 
 ```
 ├── testconn.py             # Main application file
-├── icon.png             # You can add your own icon here!
+├── logo.png             # You can add your own logo here!
 └── [SQLServers-Site1]/
     └── ResourcesToCheck.csv  # All SQL Servers at site 1
 └── [SQLServers-Site2]/
@@ -71,7 +71,7 @@ Database,172.16.0.5,5432
 1. **Prepare Your Environment**
    - Create subfolders and place your CSV files in subfolders as described in the "Example File Structure" section
    - Ensure each CSV contains the required columns (`Description`, `IP`, `Port`)
-   - Optionally, place an `icon.png` file in the same directory for the application logo. Try to keep it horizontally-aligned
+   - Optionally, place an `logo.png` file in the same directory for the application logo. Try to keep it horizontally-aligned
 
 2. **Run the Application**
    - Execute the Python script by running `python testconn.py` to launch the main window
@@ -110,6 +110,7 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
 
 
 
