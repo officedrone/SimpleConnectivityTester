@@ -8,7 +8,7 @@ Quickly check if your machine has connectivity to a remote server:port combinati
 - Python 3.x / Tkinter (usually included with Python)
 - Built-in modules: `socket`, `subprocess`, `csv`, `re`, `threading`, `os`
 
-##Running the app
+## Running the app
 
 1. Clone the repo and navigate to the folder in which the app is saved
 2. Run `python connectivity-tester.py` 
@@ -117,6 +117,7 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
 
 
 
