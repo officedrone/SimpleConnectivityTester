@@ -456,7 +456,7 @@ def create_main_window():
         # 3. Re‑create the title label (it was destroyed with the children)
         lbl_folder_title = tk.Label(
             folder_frame,
-            text="CSV-Based Tests",
+            text="Batch Test",
             font=("Segoe UI", 10, "bold"),
             bg="#f0f0f0",
             fg="#2c3e50"
@@ -821,4 +821,5 @@ def create_main_window():
 
 if __name__ == "__main__":
     create_main_window()
+
 
