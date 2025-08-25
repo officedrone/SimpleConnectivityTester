@@ -8,6 +8,13 @@ Quickly check if your machine has connectivity to a remote server:port combinati
 - Python 3.x / Tkinter (usually included with Python)
 - Built-in modules: `socket`, `subprocess`, `csv`, `re`, `threading`, `os`
 
+##Running the app
+
+1. Clone the repo and navigate to the folder in which the app is saved
+2. Run `python connectivity-tester.py` 
+3. See bottom of this file for environment prep and other instructions if needed
+
+
 
 ## Features
 
@@ -74,7 +81,7 @@ Database,172.16.0.5,5432
    - Optionally, place an `logo.png` file in the same directory for the application logo. Try to keep it horizontally-aligned
 
 2. **Run the Application**
-   - Execute the Python script by running `python testconn.py` to launch the main window
+   - Execute the Python script by running `python connectivity-tester.py` to launch the main window
    - The main window will automatically scan for subfolders containing CSV files
    - Each detected folder will display a button in the "CSV-Based Tests" section
 
@@ -110,6 +117,7 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
 
 
 
