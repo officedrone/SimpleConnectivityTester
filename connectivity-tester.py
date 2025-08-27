@@ -531,7 +531,7 @@ def create_main_window():
     # Logo (optional)
     logo_height = 0
     try:
-        logo_image = tk.PhotoImage(file="icon.png")
+        logo_image = tk.PhotoImage(file="logo.png")
         logo_label = tk.Label(root, image=logo_image, bg="#f0f0f0")
         logo_label.image = logo_image
         logo_label.pack(pady=10)
@@ -864,3 +864,4 @@ def create_main_window():
 
 if __name__ == "__main__":
     create_main_window()
+
