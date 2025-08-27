@@ -14,6 +14,7 @@ class ConnectivityRun:
         self.index = 0
         self.stop_flag = False
         self.thread = None
+        self.test_button = None
 
     def stop(self):
         self.stop_flag = True
@@ -43,9 +44,18 @@ def _connect_to_host(dest_ip: str, dest_port: int, source_ip: str | None = None)
 
         return success, elapsed_ms, "" if success else "UNSUCCESSFUL"
 
+    except socket.timeout:
+        # Timeout: connection attempt took longer than the timeout
+        return False, None, "Connection timed out"
+
+    except ConnectionRefusedError:
+        # Remote host actively refused the connection
+        return False, None, "Connection refused by remote host"
+
     except Exception as exc:
-        # On any exception we report failure and the error message
+        # On any other exception we report failure and the error message
         return False, None, f"Error: {exc}"
+
 
 
 def load_tasks(csv_path):
@@ -84,7 +94,7 @@ def get_machine_ipv4_addresses():
     
 
 def start_connectivity_check(csv_path, result_window, tree, button_name,
-                             source_ip=None, local_ip_text=None):
+                            source_ip=None, local_ip_text=None):
     """
     Kick off (or restart) a connectivity run tied to this Treeview.
     If there’s an active run, stop it, wait 100ms, and restart.
@@ -200,7 +210,7 @@ def run_task_async(tasks, tree, index, button_name, source_ip=None):
         # 4) schedule next
         if not run.stop_flag:
             tree.after(
-                100,
+                250,   # 250ms delay between tests
                 lambda: run_task_async(tasks, tree, index + 1, button_name, source_ip)
             )
 
@@ -220,6 +230,14 @@ def open_result_window(csv_path, button_name):
         result_window.configure(bg="#f0f0f0")
 
         result_window.protocol("WM_DELETE_WINDOW", lambda: _on_result_window_close(tree, result_window))
+
+        def _close_all_results(event=None):
+            # Find every child of root that is a Toplevel and destroy it
+            for win in result_window.master.winfo_children():
+                if isinstance(win, tk.Toplevel) and win.winfo_exists():
+                    win.destroy()
+
+        result_window.bind("<Escape>", _close_all_results)
 
         # Title bar with button name
         title_frame = tk.Frame(result_window, bg="#f0f0f0")
@@ -456,7 +474,7 @@ def create_main_window():
         # 3. Re‑create the title label (it was destroyed with the children)
         lbl_folder_title = tk.Label(
             folder_frame,
-            text="Batch Test",
+            text="Batch Tests",
             font=("Segoe UI", 10, "bold"),
             bg="#f0f0f0",
             fg="#2c3e50"
@@ -513,7 +531,7 @@ def create_main_window():
     # Logo (optional)
     logo_height = 0
     try:
-        logo_image = tk.PhotoImage(file="logo.png")
+        logo_image = tk.PhotoImage(file="icon.png")
         logo_label = tk.Label(root, image=logo_image, bg="#f0f0f0")
         logo_label.image = logo_image
         logo_label.pack(pady=10)
@@ -580,7 +598,7 @@ def create_main_window():
     # Title label for the button section
     lbl_folder_title = tk.Label(
         folder_frame,
-        text="Batch Test",
+        text="Batch Tests",
         font=("Segoe UI", 10, "bold"),
         bg="#f0f0f0",
         fg="#2c3e50"
@@ -621,6 +639,8 @@ def create_main_window():
 
     refresh_btn = tk.Button(root, text="Refresh", command=refresh_folders)
     refresh_btn.pack(pady=5)
+    root.bind("<Control-r>", lambda e: refresh_btn.invoke())
+    root.bind("<F5>", lambda e: refresh_btn.invoke())       
 
 
     # ---- Manual IP:Port test section ---------------------------------
@@ -649,22 +669,44 @@ def create_main_window():
                  "(e.g. 192.168.1.10:80 or example.com:443)")
             )
             return
+        
+        #show Testing
+        result_var.set("Testing")
+        result_entry.configure(foreground="#2980b9") 
 
         # Run the helper
-        success, elapsed_ms, err_msg = _connect_to_host(dest_ip, dest_port, source_ip)
+        def worker():
+            success, elapsed_ms, err_msg = _connect_to_host(dest_ip, dest_port, source_ip)
+
+            if success:
+                result_text = f"SUCCESSFUL ({elapsed_ms} ms)"
+                color = "#27ae60"
+            else:
+                result_text = err_msg
+                color = "#c0392b"
+
+            # Update UI in the main thread
+            root.after(0, lambda: [
+                result_var.set(result_text),
+                result_entry.configure(foreground=color)
+            ])
 
         # Build the result string – only add ms if the test succeeded
-        if success:
-            elapsed_str = f" ({elapsed_ms} ms)"
-            result_text = f"SUCCESSFUL{elapsed_str}"
-        else:
-            # Do **not** append the milliseconds when unsuccessful
-            result_text = err_msg
+            if success:
+                elapsed_str = f" ({elapsed_ms} ms)"
+                result_text = f"SUCCESSFUL{elapsed_str}"
+            else:
+                # Do **not** append the milliseconds when unsuccessful
+                result_text = err_msg
 
-        # Update the read‑only entry with color
-        result_var.set(result_text)
-        color = "#27ae60" if success else "#c0392b"
-        result_entry.configure(foreground=color)
+            # Update the read‑only entry with color
+            result_var.set(result_text)
+            color = "#27ae60" if success else "#c0392b"
+            result_entry.configure(foreground=color)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+
 
 
 
@@ -740,6 +782,7 @@ def create_main_window():
         width=22
     )
     entry_ipport.grid(row=2, column=0, sticky="we", padx=(5,0))
+    entry_ipport.bind("<Return>", lambda e: _run_manual())
 
     # Insert placeholder initially
     entry_ipport.insert(0, placeholder)
@@ -821,6 +864,3 @@ def create_main_window():
 
 if __name__ == "__main__":
     create_main_window()
-
-
-
