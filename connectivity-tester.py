@@ -210,7 +210,7 @@ def run_task_async(tasks, tree, index, button_name, source_ip=None):
         # 4) schedule next
         if not run.stop_flag:
             tree.after(
-                250,   # 250ms delay between tests
+                150,   # 150ms delay between tests
                 lambda: run_task_async(tasks, tree, index + 1, button_name, source_ip)
             )
 
@@ -864,4 +864,5 @@ def create_main_window():
 
 if __name__ == "__main__":
     create_main_window()
+
 
