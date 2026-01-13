@@ -92,6 +92,18 @@ def get_machine_ipv4_addresses():
     except Exception:
         return []
     
+def refresh_ip_dropdowns(*combos: ttk.Combobox):
+    """Replace each combo’s values with the current machine IPs."""
+    ips = get_machine_ipv4_addresses()
+    for cb in combos:
+        cur_val = cb.get()          # remember current selection
+        cb['values'] = ips           # update list
+        if cur_val in ips:           # keep it if still valid
+            cb.set(cur_val)
+        else:
+            cb.set(ips[0] if ips else "")
+
+    
 
 def start_connectivity_check(csv_path, result_window, tree, button_name,
                             source_ip=None, local_ip_text=None):
@@ -268,14 +280,34 @@ def open_result_window(csv_path, button_name):
         ).pack(side=tk.LEFT, padx=(10, 5))
         local_ips = get_machine_ipv4_addresses()
         selected_ip = tk.StringVar(value=local_ips[0] if local_ips else "")
-        ttk.Combobox(
+        # Store a reference to the Combobox widget so we can update its values later
+        combo_local_ip = ttk.Combobox(
             ip_frame,
             textvariable=selected_ip,
             values=local_ips,
             state="readonly",
             font=("Segoe UI", 9),
             width=20
-        ).pack(side=tk.LEFT, padx=5)
+        )
+        combo_local_ip.pack(side=tk.LEFT, padx=5)
+
+        # Refresh IPs button (right of the combobox)
+        refresh_ip_btn = tk.Button(
+            ip_frame,
+            text="Refresh IPs",
+            command=lambda: refresh_ip_dropdowns(combo_local_ip),
+            font=("Segoe UI", 9, "bold"),
+            bg="#2980b9",
+            fg="#ffffff",
+            activebackground="#2980b9",
+            activeforeground="#ffffff",
+            relief="flat",
+            padx=10,
+            pady=3,
+            borderwidth=0
+        )
+        refresh_ip_btn.pack(side=tk.LEFT, padx=(5, 0))
+
 
         # Optional scrolledtext for local IP display (unused here)
         local_ip_text = None
@@ -851,7 +883,26 @@ def create_main_window():
         pady=5,
         borderwidth=0
     )
-    test_btn.grid(row=3, column=1, sticky="we", padx=(5,0), pady=(10,0))
+    test_btn.grid(row=3, column=0, sticky="we", padx=(5,0), pady=(10,0))
+
+    # Refresh IPs button 
+    refresh_btn = tk.Button(
+        manual_frame,
+        text="Refresh IPs",
+        command=lambda: refresh_ip_dropdowns(combo_source_ip),
+        font=("Segoe UI", 9, "bold"),
+        bg="#2980b9",
+        fg="#ffffff",
+        activebackground="#2980b9",
+        activeforeground="#ffffff",
+        relief="flat",
+        padx=15,
+        pady=5,
+        borderwidth=0
+    )
+
+    refresh_btn.grid(row=3, column=1, sticky="we", padx=(10,0), pady=(10,0))
+
 
     # --------------------------------------------------------------------
     # Layout tweaks
@@ -864,5 +915,3 @@ def create_main_window():
 
 if __name__ == "__main__":
     create_main_window()
-
-
