@@ -32,6 +32,9 @@ Quickly check if your machine has connectivity to a remote server:port combinati
 
   ![Folder Demo ](./Media/readme-folder.gif)
 
+- **IP Refresh Functionalty**: Refresh IP addresses you can test from without having to restart the app. Useful if you change VPNs or VPN gateways
+
+- **Configurable test delay**: Configure delay between each tests (default is 100ms).
 
 - **Customizable logo**: Simply replace the logo.png file with the file of your choice.
 
@@ -117,6 +120,7 @@ Database,172.16.0.5,5432
 - **Q:** Can we show service responses such as HTTP 401s or SQL auth responses
 
   **A:** Not really as this is meant to be a simple network-level tester.
+
 
 
 
