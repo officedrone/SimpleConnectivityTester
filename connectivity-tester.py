@@ -105,8 +105,9 @@ def refresh_ip_dropdowns(*combos: ttk.Combobox):
 
     
 
+
 def start_connectivity_check(csv_path, result_window, tree, button_name,
-                            source_ip=None, local_ip_text=None):
+                             source_ip=None, local_ip_text=None, delay_ms=100):
     """
     Kick off (or restart) a connectivity run tied to this Treeview.
     If there’s an active run, stop it, wait 100ms, and restart.
@@ -118,7 +119,7 @@ def start_connectivity_check(csv_path, result_window, tree, button_name,
             100,
             lambda: start_connectivity_check(
                 csv_path, result_window, tree, button_name,
-                source_ip, local_ip_text
+                source_ip, local_ip_text, delay_ms  # pass delay on restart
             )
         )
         return
@@ -134,7 +135,7 @@ def start_connectivity_check(csv_path, result_window, tree, button_name,
         local_ip_text.delete("1.0", tk.END)
 
     # Preload the tree with "Testing" placeholders
-    for desc, ip, port in tasks:          # <‑ iterate over tasks list
+    for desc, ip, port in tasks:
         tree.insert(
             "",
             tk.END,
@@ -147,8 +148,9 @@ def start_connectivity_check(csv_path, result_window, tree, button_name,
         ips = get_machine_ipv4_addresses()
         local_ip_text.insert(tk.END, "\n".join(ips) + "\n")
 
-    # Begin async scanning
-    run_task_async(tasks, tree, 0, button_name, source_ip)
+    # Begin async scanning with user-selected delay
+    run_task_async(tasks, tree, 0, button_name, source_ip, delay_ms=delay_ms)
+
 
 # Proper disposal of window and stopping tests if user closes window while tests are running
 def _on_result_window_close(tree, win):
@@ -168,7 +170,8 @@ def _on_result_window_close(tree, win):
         run.stop()          # signal the background thread to exit
     win.destroy()
 
-def run_task_async(tasks, tree, index, button_name, source_ip=None):
+
+def run_task_async(tasks, tree, index, button_name, source_ip=None, delay_ms=100):
     run = runs.get(tree)
     if not run or run.stop_flag or index >= len(run.tasks):
         return
@@ -176,9 +179,8 @@ def run_task_async(tasks, tree, index, button_name, source_ip=None):
     run.index = index  # track progress
 
     def scan_worker():
-        # 1) mark row testing & Start timer 
-
-        start = time.perf_counter()  
+        # 1) mark row testing & Start timer
+        start = time.perf_counter()
 
         def set_testing():
             if run.stop_flag:
@@ -196,11 +198,8 @@ def run_task_async(tasks, tree, index, button_name, source_ip=None):
         desc, ip, port = tasks[index]
         success, elapsed_ms, err_msg = _connect_to_host(ip, port, source_ip)
 
-        status_text = (
-            f"SUCCESSFUL ({elapsed_ms} ms)" if success else err_msg
-        )
+        status_text = f"SUCCESSFUL ({elapsed_ms} ms)" if success else err_msg
         tag = "successful" if success else "unsuccessful"
-
 
         # 3) update row with result
         def update_ui():
@@ -214,23 +213,25 @@ def run_task_async(tasks, tree, index, button_name, source_ip=None):
                 tags=(tag,)
             )
             tree.see(iid)
-            # auto-scroll near the end
             if index >= len(tasks) - 3:
                 tree.yview_scroll(1, "units")
         tree.after(0, update_ui)
 
-        # 4) schedule next
+        # 4) schedule next using the configured delay
         if not run.stop_flag:
+            next_delay = max(0, int(delay_ms))  # clamp to non-negative
             tree.after(
-                150,   # 150ms delay between tests
-                lambda: run_task_async(tasks, tree, index + 1, button_name, source_ip)
+                next_delay,
+                # IMPORTANT: propagate delay_ms in the recursive call
+                lambda: run_task_async(
+                    tasks, tree, index + 1, button_name, source_ip, delay_ms=next_delay
+                )
             )
 
-    # fire the background thread
-    thread = threading.Thread(target=scan_worker)
-    thread.daemon = True
+    thread = threading.Thread(target=scan_worker, daemon=True)
     thread.start()
     run.thread = thread
+
 
 
 def open_result_window(csv_path, button_name):
@@ -241,10 +242,12 @@ def open_result_window(csv_path, button_name):
         result_window.geometry("720x500")
         result_window.configure(bg="#f0f0f0")
 
-        result_window.protocol("WM_DELETE_WINDOW", lambda: _on_result_window_close(tree, result_window))
+        result_window.protocol(
+            "WM_DELETE_WINDOW",
+            lambda: _on_result_window_close(tree, result_window)
+        )
 
         def _close_all_results(event=None):
-            # Find every child of root that is a Toplevel and destroy it
             for win in result_window.master.winfo_children():
                 if isinstance(win, tk.Toplevel) and win.winfo_exists():
                     win.destroy()
@@ -280,7 +283,6 @@ def open_result_window(csv_path, button_name):
         ).pack(side=tk.LEFT, padx=(10, 5))
         local_ips = get_machine_ipv4_addresses()
         selected_ip = tk.StringVar(value=local_ips[0] if local_ips else "")
-        # Store a reference to the Combobox widget so we can update its values later
         combo_local_ip = ttk.Combobox(
             ip_frame,
             textvariable=selected_ip,
@@ -308,21 +310,19 @@ def open_result_window(csv_path, button_name):
         )
         refresh_ip_btn.pack(side=tk.LEFT, padx=(5, 0))
 
-
         # Optional scrolledtext for local IP display (unused here)
         local_ip_text = None
 
         # Treeview + scrollbar
         table_frame = tk.Frame(result_window, bg="#f0f0f0")
-        table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        table_frame.pack(fill=tk.BOTH, expand=True,
+                         padx=10, pady=(0, 10))
         tree = ttk.Treeview(
             table_frame,
-            columns=(
-                "Service / Description",
-                "Destination IP / DNS",
-                "Destination Port",
-                "Result"
-            ),
+            columns=("Service / Description",
+                     "Destination IP / DNS",
+                     "Destination Port",
+                     "Result"),
             show="headings",
             style="Modern.Treeview"
         )
@@ -333,9 +333,8 @@ def open_result_window(csv_path, button_name):
             ("Result", "Result", 200),
         ]:
             tree.heading(col, text=txt)
-            # Left‑align the Service/Description column
             if col == "Service / Description":
-                tree.column(col, width=w, anchor="w")   # or anchor="left"
+                tree.column(col, width=w, anchor="w")
             else:
                 tree.column(col, width=w, anchor="center")
 
@@ -346,15 +345,14 @@ def open_result_window(csv_path, button_name):
                 tree.insert(
                     "",
                     tk.END,
-                    values=(
-                        row["Description"],
-                        row["IP"],
-                        int(row["Port"]),
-                        "Not tested"
-                    ),
+                    values=(row["Description"],
+                            row["IP"],
+                            int(row["Port"]),
+                            "Not tested"),
                     tags=("pending",)
                 )
-        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
+        vsb = ttk.Scrollbar(table_frame, orient="vertical",
+                            command=tree.yview)
         tree.configure(yscrollcommand=vsb.set)
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
@@ -371,10 +369,44 @@ def open_result_window(csv_path, button_name):
         )
         style.map("Modern.Treeview", background=[("selected", "#3498db")])
         tree.tag_configure("pending", foreground="#000000")
-        tree.tag_configure("testing", background="#e0f7ff", foreground="#007acc")
+        tree.tag_configure("testing",
+                           background="#e0f7ff",
+                           foreground="#007acc")
         tree.tag_configure("successful", foreground="#27ae60")
         tree.tag_configure("unsuccessful", foreground="#e74c3c")
         tree.tag_configure("cancelled", foreground="#f39c12")
+
+                # --------------------  **DELAY CONFIGURATION** --------------------
+        delay_frame = tk.Frame(result_window, bg="#f0f0f0")
+        delay_frame.pack(pady=5)
+
+        lbl_delay = tk.Label(
+            delay_frame,
+            text="Delay between tests",
+            font=("Segoe UI", 9),
+            bg="#f0f0f0"
+        )
+        lbl_delay.grid(row=0, column=0, padx=(5, 2))
+
+        # Holds the current numeric value (default 100)
+        delay_var = tk.IntVar(value=100)
+        entry_delay = ttk.Entry(
+            delay_frame,
+            textvariable=delay_var,
+            width=6,
+            font=("Segoe UI", 9),
+            justify="right"
+        )
+        entry_delay.grid(row=0, column=1, padx=(2, 2))
+
+        lbl_ms = tk.Label(
+            delay_frame,
+            text="ms",
+            font=("Segoe UI", 9),
+            bg="#f0f0f0"
+        )
+        lbl_ms.grid(row=0, column=2, padx=(2, 5))
+        # ----------------------------------------------------------------
 
         # Buttons
         btn_frame = tk.Frame(result_window, bg="#f0f0f0")
@@ -401,7 +433,8 @@ def open_result_window(csv_path, button_name):
             "Test",
             lambda: start_connectivity_check(
                 csv_path, result_window, tree,
-                button_name, selected_ip.get(), local_ip_text
+                button_name, selected_ip.get(), local_ip_text,
+                int(delay_var.get())          # <‑ use the user‑set delay
             )
         )
         btn_stop = create_button(
@@ -414,6 +447,7 @@ def open_result_window(csv_path, button_name):
 
     except Exception as e:
         messagebox.showerror("Error", f"Error opening results window: {e}")
+
 
 
 def _calc_min_height(
