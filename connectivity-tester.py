@@ -338,7 +338,10 @@ def open_result_window(csv_path, button_name):
         refresh_ip_btn = tk.Button(
             ip_frame,
             text="Refresh IPs",
-            command=lambda: refresh_ip_dropdowns(combo_local_ip),
+            command=lambda: (
+                refresh_ip_dropdowns(combo_local_ip),
+                _update_result_status(combo_local_ip.get())
+            ),
             font=("Segoe UI", 9, "bold"),
             bg="#2980b9",
             fg="#ffffff",
@@ -990,7 +993,10 @@ def create_main_window():
     refresh_btn = tk.Button(
         manual_frame,
         text="Refresh IPs",
-        command=lambda: refresh_ip_dropdowns(combo_source_ip),
+        command=lambda: (
+            refresh_ip_dropdowns(combo_source_ip),
+            _update_status(combo_source_ip.get())
+        ),
         font=("Segoe UI", 9, "bold"),
         bg="#2980b9",
         fg="#ffffff",
@@ -1001,8 +1007,8 @@ def create_main_window():
         pady=5,
         borderwidth=0
     )
-
     refresh_btn.grid(row=3, column=1, sticky="we", padx=(10,0), pady=(10,0))
+
 
 
     # --------------------------------------------------------------------
