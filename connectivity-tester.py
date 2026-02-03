@@ -58,6 +58,47 @@ def _connect_to_host(dest_ip: str, dest_port: int, source_ip: str | None = None)
 
 
 
+# ------------------------------------------------------------------
+# Get the public IP that is reachable from a specific private IP.
+# Uses urllib – no external libraries are required.
+# ------------------------------------------------------------------
+def _public_ip_for_local(local_ip: str) -> str | None:
+    """
+    Return the public IP address as seen from the network interface bound to `local_ip`.
+    If the request fails, return None.
+    """
+    import urllib.request
+
+    try:
+        # Create a socket that binds to the given local IP so the outbound
+        # connection originates from that interface.  This mimics the behaviour
+        # of PowerShell’s Invoke‑RestMethod –Uri “https://api.ipify.org”.
+        req = urllib.request.Request("https://api.ipify.org")
+        opener = urllib.request.build_opener()
+        opener.addheaders = [("User-Agent", "Python-ConnectivityTester/1.0")]
+
+        # Force the socket to bind to `local_ip` by using a custom
+        # socket factory (see https://bugs.python.org/issue12371).
+        class BindSocketFactory(urllib.request.HTTPHandler):
+            def http_open(self, req):
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)                     # 5‑second timeout
+                sock.bind((local_ip, 0))               # bind to local IP
+                conn = urllib.request.HTTPConnection(
+                    host=req.host,
+                    timeout=5,
+                    source_address=(local_ip, 0),
+                )
+                return conn
+
+        opener.add_handler(BindSocketFactory())
+        with opener.open(req, timeout=5) as resp:
+            return resp.read().decode("utf-8").strip()
+    except Exception:
+        # Any failure (timeout, DNS error, etc.) – just return None
+        return None
+
+
 def load_tasks(csv_path):
     rows = []
     with open(csv_path, newline='') as fh:
@@ -443,6 +484,32 @@ def open_result_window(csv_path, button_name):
             lambda t=tree: stop_running_tests(t)
         )
         btn_local.pack(side=tk.LEFT, padx=5)
+
+        # ------------------------------------------------------------------
+        # Status bar for the result window – mirrors the main‑window status bar.
+        # ------------------------------------------------------------------
+        result_status_var = tk.StringVar()
+        def _update_result_status(selected_ip: str):
+            pub_ip = _public_ip_for_local(selected_ip) or "Unknown"
+            result_status_var.set(f"Private IP Selected: {selected_ip} (Public IP {pub_ip})")
+
+        # Set it once with the combobox’s current value
+        _update_result_status(combo_local_ip.get())
+
+        result_status_bar = ttk.Label(
+            result_window,
+            textvariable=result_status_var,
+            relief="sunken",
+            anchor="w",
+            padding=(5, 0)
+        )
+        result_status_bar.pack(fill=tk.X, side=tk.BOTTOM)
+
+        # Keep it updated on selection changes
+        combo_local_ip.bind("<<ComboboxSelected>>", lambda e: _update_result_status(combo_local_ip.get()))
+
+
+
         btn_stop.pack(side=tk.LEFT, padx=5)
 
     except Exception as e:
@@ -944,6 +1011,33 @@ def create_main_window():
     manual_frame.rowconfigure(2, minsize=2)   # Labels row
     manual_frame.rowconfigure(3, minsize=10)   # Widgets row
     manual_frame.rowconfigure(4, minsize=10)   # Button row
+
+
+    # ------------------------------------------------------------------
+    # Status bar – shows Private IP | Public IP for the currently selected local IP.
+    # ------------------------------------------------------------------
+    status_var = tk.StringVar()
+    status_bar = ttk.Label(
+        root,
+        textvariable=status_var,
+        relief="sunken",
+        anchor="w",
+        padding=(5, 0)
+    )
+    status_bar.place(relx=0, rely=1.0, relwidth=1.0, anchor='sw')
+
+    def _update_status(selected_ip: str):
+        """Populate the status bar with the private & public IP for `selected_ip`."""
+        pub_ip = _public_ip_for_local(selected_ip) or "Unknown"
+        status_var.set(f"Private IP Selected: {selected_ip} (Public IP:{pub_ip})")
+
+    # Initial population
+    if local_ips:
+        _update_status(local_ips[0])
+
+    # Hook into the Combobox’s selection event
+    combo_source_ip.bind("<<ComboboxSelected>>", lambda e: _update_status(combo_source_ip.get()))
+
 
     root.mainloop()
 
