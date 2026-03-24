@@ -20,7 +20,7 @@ Quickly check if your machine has connectivity to a remote server:port combinati
 
 - **Local IP selection**: Choose which local IP address to test from if your machine has multiple IPs. Handy if you are testing VPN vs local connectivity.
 
-- **Manual testing**: Test to a single IP:port combinations directly from the main form
+- **Manual testing**: Test to a single IP:port combinations directly from the main form, or perform DNS lookup (lookup done against the portion of the string before the column ':' symbol)
 
   ![Manual Test Demo ](./Media/readme-manual.gif)
 
