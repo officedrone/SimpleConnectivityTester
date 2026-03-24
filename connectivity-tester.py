@@ -805,7 +805,7 @@ def create_main_window():
                  "(e.g. 192.168.1.10:80 or example.com:443)")
             )
             return
-        
+    
         #show Testing
         result_var.set("Testing")
         result_entry.configure(foreground="#2980b9") 
@@ -842,11 +842,42 @@ def create_main_window():
 
         threading.Thread(target=worker, daemon=True).start()
 
+    # --------------------------------------------------------------------
+    # NSLookup helper – shows its result in the existing “Result” entry
+    # --------------------------------------------------------------------
+    def _run_nslookup():
+        """Run the NSLookup helper – shows its result in the existing “Result” entry"""
+        url = ip_port_var.get().strip()          # or use a dedicated url_var if you added one
+
+        if not url:
+            messagebox.showwarning("Input required", "Please enter a URL.")
+            return
+
+        host = url.split(":")[0]  # hostname only
+        result_entry.configure(foreground="#2980b9")
+        result_var.set("Resolving…")
+
+        def worker():
+            try:
+                ip_addr = socket.gethostbyname(host)
+                result_text, color = f"{ip_addr}", "#27ae60"
+            except Exception as exc:
+                result_text, color = str(exc), "#c0392b"
+
+            root.after(0, lambda: [
+                result_var.set(result_text),
+                result_entry.configure(foreground=color)
+            ])
+
+        threading.Thread(target=worker, daemon=True).start()
 
 
 
 
 
+
+
+    
 
     label_manual = tk.Label(
         manual_frame,
@@ -920,6 +951,7 @@ def create_main_window():
     entry_ipport.grid(row=2, column=0, sticky="we", padx=(5,0))
     entry_ipport.bind("<Return>", lambda e: _run_manual())
 
+
     # Insert placeholder initially
     entry_ipport.insert(0, placeholder)
     entry_ipport.configure(foreground=placeholder_color)
@@ -989,6 +1021,9 @@ def create_main_window():
     )
     test_btn.grid(row=3, column=0, sticky="we", padx=(5,0), pady=(10,0))
 
+
+
+
     # Refresh IPs button 
     refresh_btn = tk.Button(
         manual_frame,
@@ -1009,6 +1044,25 @@ def create_main_window():
     )
     refresh_btn.grid(row=3, column=1, sticky="we", padx=(10,0), pady=(10,0))
 
+
+    # --------------------------------------------------------------------
+    # NSLookup button – triggers DNS resolution for the URL entered above
+    # --------------------------------------------------------------------
+    nslookup_btn = tk.Button(
+        manual_frame,
+        text="NSLookup",
+        command=_run_nslookup,
+        font=("Segoe UI", 9, "bold"),
+        bg="#2980b9",
+        fg="#ffffff",
+        activebackground="#2980b9",
+        activeforeground="#ffffff",
+        relief="flat",
+        padx=15,
+        pady=5,
+        borderwidth=0
+    )
+    nslookup_btn.grid(row=3, column=2, sticky="we", padx=(10,0), pady=(10,0))
 
 
     # --------------------------------------------------------------------
