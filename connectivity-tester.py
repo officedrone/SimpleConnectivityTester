@@ -15,6 +15,9 @@ class ConnectivityRun:
         self.stop_flag = False
         self.thread = None
         self.test_button = None
+        self.current_index = 0
+        self.batch_lock = threading.Lock()
+        self.threads = []
 
     def stop(self):
         self.stop_flag = True
@@ -144,14 +147,88 @@ def refresh_ip_dropdowns(*combos: ttk.Combobox):
         else:
             cb.set(ips[0] if ips else "")
 
+def get_dns_for_ip(target_ip: str) -> str | None:
+    """
+    Return the first DNS server listed for the adapter that owns *target_ip*.
+    Works on Windows 10/11. Returns None if no matching adapter or no DNS entry is found.
+    """
+    try:
+        # Use ipconfig /all to get the full detail
+        out = subprocess.run(['ipconfig', '/all'],
+                             capture_output=True, text=True).stdout
+
+        inside_adapter = False
+        for line in out.splitlines():
+            # Detect the block that contains our IP
+            if "IPv4 Address" in line or "IP Address" in line:
+                m_ip = re.search(r'(\d+\.\d+\.\d+\.\d+)', line)
+                inside_adapter = bool(m_ip and m_ip.group(1) == target_ip)
+
+            # While inside the right adapter, look for a “DNS Servers” line
+            elif inside_adapter:
+                if "DNS Servers" in line or "DNS Server" in line:
+                    # Grab everything after the colon up to the end of the line
+                    m_dns = re.search(r'DNS Servers[^\d]*:\s*([0-9\.]+)', line)
+                    if m_dns:
+                        return m_dns.group(1).split(',')[0].strip()
+
+        # No DNS server found for this adapter
+        return None
+
+    except Exception:
+        return None
+
+
+def _batch_worker(run, tree, source_ip, delay_ms):
+    """Worker thread that processes tasks from the shared index."""
+    while True:
+        # 1. Get next index safely
+        with run.batch_lock:
+            if run.stop_flag:
+                break
+            if run.current_index >= len(run.tasks):
+                break
+
+            idx = run.current_index
+            run.current_index += 1
+
+        # 2. Perform the test
+        desc, ip, port = run.tasks[idx]
+        success, elapsed_ms, err_msg = _connect_to_host(ip, port, source_ip)
+
+        status_text = f"SUCCESSFUL ({elapsed_ms} ms)" if success else err_msg
+        tag = "successful" if success else "unsuccessful"
+
+        # 3. Update UI on main thread
+        def update_ui():
+            if not tree.winfo_exists():
+                return
+            iid = tree.get_children()[idx]
+            current = tree.item(iid, "values")
+            tree.item(
+                iid,
+                values=(current[0], current[1], current[2], status_text),
+                tags=(tag,)
+            )
+            tree.see(iid)
+            if idx >= len(run.tasks) - 3:
+                tree.yview_scroll(1, "units")
+
+        tree.after(0, update_ui)
+
+        # 4. Wait before picking next task (optional, keeps thread from spinning)
+        if not run.stop_flag:
+            time.sleep(delay_ms / 1000.0)
+
+
     
 
 
 def start_connectivity_check(csv_path, result_window, tree, button_name,
-                             source_ip=None, local_ip_text=None, delay_ms=100):
+                             source_ip=None, local_ip_text=None, delay_ms=100, batch_size=1):
     """
     Kick off (or restart) a connectivity run tied to this Treeview.
-    If there’s an active run, stop it, wait 100ms, and restart.
+    batch_size: Number of concurrent threads (1 = sequential).
     """
     # If an existing run is in progress, stop it and restart shortly
     if tree in runs and not runs[tree].stop_flag:
@@ -160,7 +237,7 @@ def start_connectivity_check(csv_path, result_window, tree, button_name,
             100,
             lambda: start_connectivity_check(
                 csv_path, result_window, tree, button_name,
-                source_ip, local_ip_text, delay_ms  # pass delay on restart
+                source_ip, local_ip_text, delay_ms, batch_size
             )
         )
         return
@@ -189,8 +266,17 @@ def start_connectivity_check(csv_path, result_window, tree, button_name,
         ips = get_machine_ipv4_addresses()
         local_ip_text.insert(tk.END, "\n".join(ips) + "\n")
 
-    # Begin async scanning with user-selected delay
-    run_task_async(tasks, tree, 0, button_name, source_ip, delay_ms=delay_ms)
+    # Initialize batch state
+    run.current_index = 0
+    run.batch_lock = threading.Lock()
+    run.threads = []
+
+    # Start worker threads
+    for _ in range(batch_size):
+        t = threading.Thread(target=_batch_worker, args=(run, tree, source_ip, delay_ms), daemon=True)
+        t.start()
+        run.threads.append(t)
+
 
 
 # Proper disposal of window and stopping tests if user closes window while tests are running
@@ -295,6 +381,8 @@ def open_result_window(csv_path, button_name):
 
         result_window.bind("<Escape>", _close_all_results)
 
+
+
         # Title bar with button name
         title_frame = tk.Frame(result_window, bg="#f0f0f0")
         title_frame.pack(pady=10)
@@ -356,6 +444,9 @@ def open_result_window(csv_path, button_name):
 
         # Optional scrolledtext for local IP display (unused here)
         local_ip_text = None
+
+        
+
 
         # Treeview + scrollbar
         table_frame = tk.Frame(result_window, bg="#f0f0f0")
@@ -452,6 +543,27 @@ def open_result_window(csv_path, button_name):
         lbl_ms.grid(row=0, column=2, padx=(2, 5))
         # ----------------------------------------------------------------
 
+                # --------------------  **BATCH SIZE CONFIGURATION** --------------------
+        batch_frame = tk.Frame(result_window, bg="#f0f0f0")
+        batch_frame.pack(pady=5)
+
+        tk.Label(
+            batch_frame,
+            text="Hosts per test:",
+            font=("Segoe UI", 9),
+            bg="#f0f0f0"
+        ).grid(row=0, column=0, padx=(5, 2))
+
+        batch_var = tk.IntVar(value=2)  # Default to 2 so we don't get banned
+        entry_batch = ttk.Entry(
+            batch_frame,
+            textvariable=batch_var,
+            width=6,
+            font=("Segoe UI", 9),
+            justify="right"
+        )
+        entry_batch.grid(row=0, column=1, padx=(2, 2))
+
         # Buttons
         btn_frame = tk.Frame(result_window, bg="#f0f0f0")
         btn_frame.pack(pady=5)
@@ -478,9 +590,11 @@ def open_result_window(csv_path, button_name):
             lambda: start_connectivity_check(
                 csv_path, result_window, tree,
                 button_name, selected_ip.get(), local_ip_text,
-                int(delay_var.get())          # <‑ use the user‑set delay
+                int(delay_var.get()),
+                int(batch_var.get())          
             )
         )
+
         btn_stop = create_button(
             btn_frame,
             "Stop",
@@ -493,8 +607,10 @@ def open_result_window(csv_path, button_name):
         # ------------------------------------------------------------------
         result_status_var = tk.StringVar()
         def _update_result_status(selected_ip: str):
+            dns_ip = get_dns_for_ip(selected_ip) or "N/A"
             pub_ip = _public_ip_for_local(selected_ip) or "Unknown"
-            result_status_var.set(f"Private IP Selected: {selected_ip} (Public IP {pub_ip})")
+            result_status_var.set(f"Private IP: {selected_ip} | DNS: {dns_ip} | Public IP: {pub_ip}")
+
 
         # Set it once with the combobox’s current value
         _update_result_status(combo_local_ip.get())
@@ -846,30 +962,70 @@ def create_main_window():
     # NSLookup helper – shows its result in the existing “Result” entry
     # --------------------------------------------------------------------
     def _run_nslookup():
-        """Run the NSLookup helper – shows its result in the existing “Result” entry"""
-        url = ip_port_var.get().strip()          # or use a dedicated url_var if you added one
-
+        url = ip_port_var.get().strip()
         if not url:
             messagebox.showwarning("Input required", "Please enter a URL.")
             return
 
-        host = url.split(":")[0]  # hostname only
+        host = url.split(":")[0]
         result_entry.configure(foreground="#2980b9")
         result_var.set("Resolving…")
 
         def worker():
-            try:
-                ip_addr = socket.gethostbyname(host)
-                result_text, color = f"{ip_addr}", "#27ae60"
-            except Exception as exc:
-                result_text, color = str(exc), "#c0392b"
+            dns_ip = get_dns_for_ip(source_ip_var.get())
+            if not dns_ip:
+                # fallback to system DNS
+                try:
+                    ip_addr = socket.gethostbyname(host)
+                    result_text, color = ip_addr, "#27ae60"
+                except Exception as exc:
+                    result_text, color = f"NSLookup Error: {exc}", "#c0392b"
+            else:
+                try:
+                    # “-type=A” keeps the output small and consistent
+                    cmd = ['nslookup', '-type=A', host, dns_ip]
+                    res = subprocess.run(cmd,
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=10)
+                    # combine stdout & stderr – errors can appear on either stream
+                    output = (res.stdout + "\n" + res.stderr).strip()
 
-            root.after(0, lambda: [
-                result_var.set(result_text),
-                result_entry.configure(foreground=color)
-            ])
+                    # parse the first IPv4 address that appears after “Name:”
+                    found_address = False
+                    for j, line in enumerate(output.splitlines()):
+                        if "Name:" in line:
+                            for k in range(j + 1,
+                                          min(j + 5, len(output.splitlines()))):
+                                if "Address:" in output.splitlines()[k]:
+                                    addr_match = re.search(
+                                        r':\s*(\d+\.\d+\.\d+\.\d+)',
+                                        output.splitlines()[k]
+                                    )
+                                    if addr_match:
+                                        result_text = addr_match.group(1)
+                                        color = "#27ae60"
+                                        found_address = True
+                                        break
+                            if found_address:
+                                break
+
+                    if not found_address:          # no address found → error
+                        raise ValueError("No address returned")
+
+                except Exception as exc:
+                    result_text, color = f"NSLookup Error: {exc}", "#c0392b"
+
+            # Update the UI on the main thread
+            root.after(0,
+                       lambda: [
+                           result_var.set(result_text),
+                           result_entry.configure(foreground=color)
+                       ])
 
         threading.Thread(target=worker, daemon=True).start()
+
+
 
 
 
@@ -1087,9 +1243,11 @@ def create_main_window():
     status_bar.place(relx=0, rely=1.0, relwidth=1.0, anchor='sw')
 
     def _update_status(selected_ip: str):
-        """Populate the status bar with the private & public IP for `selected_ip`."""
+        """Populate the status bar with the private, DNS, & public IP for `selected_ip`."""
+        dns_ip = get_dns_for_ip(selected_ip) or "N/A"
         pub_ip = _public_ip_for_local(selected_ip) or "Unknown"
-        status_var.set(f"Private IP Selected: {selected_ip} (Public IP:{pub_ip})")
+        status_var.set(f"Private IP: {selected_ip} | DNS: {dns_ip} | Public IP: {pub_ip}")
+
 
     # Initial population
     if local_ips:
