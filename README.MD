@@ -1,4 +1,4 @@
-# Simple Network Connectivity Tester
+# Simple Python Network Connectivity Tester with UI
 
 Quickly check if your machine has connectivity to a remote server:port combination. Create subfolders with target services in a CSV file that will show up in the batch testing section.
 ![SimpleNetTest ](./Media/simplenettest.png)
